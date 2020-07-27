@@ -1,0 +1,24 @@
+```{r}
+library(googlesheets4)
+library(tidyverse)
+library(caret)
+```
+
+```{r}
+sheet <- as.character(Sys.Date())
+raw_df <- read_sheet("https://docs.google.com/spreadsheets/d/1ig3mbe43WIVZbHNuTI70AYLih4WryOqm6KujYc4bUeM/edit#gid=555070615", sheet=sheet)
+raw_df <- data.frame(raw_df)
+```
+
+```{r}
+numeric_df <- raw_df
+labels <- c("vhn","hn","ln","lp","hp","vhp")
+breaks <- c(-Inf,-2, -1, 0, 1, 2, Inf) 
+for (i in seq(1,length(raw_df)-1,1)){
+  numeric_df[,i] <- str_remove_all(numeric_df[,i], ",")
+  numeric_df[,i] <- as.numeric(as.character(numeric_df[,i]))
+  numeric_df[,i] <- scale(numeric_df[,i])
+  numeric_df[,i] <- cut(numeric_df[,i], breaks=breaks, labels=labels)
+}
+numeric_df$time <- as.POSIXct(numeric_df$time)
+```
