@@ -1,0 +1,57 @@
+```{r}
+library(rvest)
+library(tidyverse)
+library(timeDate)
+library(googlesheets4)
+library(e1071)
+library(QuantTools)
+library(ggplot2)
+library(ggalt)
+```
+
+
+```{r}
+sheet <- "Market Data Backup"
+raw_df <- read_sheet("https://docs.google.com/spreadsheets/d/1ig3mbe43WIVZbHNuTI70AYLih4WryOqm6KujYc4bUeM/edit#gid=555070615", sheet=sheet)
+raw_df[,2:length(raw_df)] <- sapply(raw_df[,2:length(raw_df)], str_remove_all, ",")
+raw_df[,2:length(raw_df)] <- sapply(raw_df[,2:length(raw_df)], as.numeric)
+```
+
+
+```{r}
+todays_data <- filter(raw_df, as.Date(time) == date)
+todays_data <- select(todays_data, time, stock)
+
+todays_differences <- todays_data[2:nrow(todays_data),]
+todays_differences$diff <- round(diff(todays_data[,2], 1) / todays_data[2:nrow(todays_data),2], 4)
+todays_differences$direction <- ifelse(todays_differences$diff > 0, "UP", "DOWN")
+todays_differences$direction <- ifelse(todays_differences$diff == 0, "NOCHANGE", todays_differences$direction)
+todays_differences$direction[nrow(todays_differences)] <- "NOCHANGE"
+
+overall_yield <- 0
+n <- 0
+transactions <- data.frame()
+money <- todays_differences$stock[nrow(todays_differences)]
+
+for(i in seq(1, nrow(todays_differences), 1)){
+  if(todays_differences$direction[i] == "DOWN"){
+    overall_yield <- overall_yield + todays_differences$diff[i+1]
+    n <- n + 1
+    yield <- todays_differences$diff[i+1]
+    transactions <- rbind(yield, transactions)
+  }
+}
+
+overall_yield <- paste(overall_yield * 100,"%",sep="")
+results <- data.frame(overall_yield, n)
+colnames(results) <- c("Overall Yield", "Transactions")
+colnames(transactions) <- c("Yield")
+
+data <- c(results, transactions)
+
+data.frame("Overall Yield" = data$`Overall Yield`, "Transactions" = data$Transactions)
+
+df2 <- data.frame(data$Yield)
+ggplot(data = df2, aes(x=seq(1,nrow(df2), 1), y=data.Yield)) + 
+    geom_line(size=1, color="tomato3") 
+```
