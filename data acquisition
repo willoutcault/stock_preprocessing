@@ -1,0 +1,82 @@
+```{r}
+library(rvest)
+library(tidyverse)
+library(timeDate)
+library(googlesheets4)
+```
+
+```{r}
+# Initialize dataframe and program
+df <- data.frame()
+run <- T
+
+
+holidays <- as.character(holidayNYSE(year = getRmetricsOptions("currentYear")))
+market_open <- as.POSIXlt(paste(Sys.Date(),'9:50:00',sep=""))
+market_close <- as.POSIXlt(paste(Sys.Date(),'16:00:00',sep=""))
+today <- as.character(Sys.Date())
+
+
+while(run==T){
+  while(! today %in% holidays &
+        isWeekday(today) &
+        Sys.time() < market_close &
+        Sys.time() > market_open){
+    
+    start_connection_time <- Sys.time()
+    
+    # Retrieve Data
+    raw_list <- list()
+    for (i in seq(1,2,1)){
+      page_number <- i
+      main_page <- html_session(paste("https://markets.businessinsider.com/index/nasdaq_100?p=",i, sep = ""))
+      main_page <- read_html(main_page)
+      raw_page <- main_page %>% 
+        html_nodes(".table__tr") %>% 
+        html_text()
+      raw_list <- append(raw_list, raw_page)
+    }
+    
+    
+    end_connection_time <- Sys.time()
+    
+    connection_time <- end_connection_time - start_connection_time
+    
+    start_computation_time <- Sys.time()
+    
+    # Clean Data
+    clean1 <- sapply(raw_list, str_extract_all, "\r\n.+\t")
+    clean2 <- sapply(clean1, str_remove_all, "\r")
+    clean3 <- sapply(clean2, str_remove_all, "\t")
+    clean4 <- sapply(clean3, str_remove_all, "\n")
+    temp_df <- do.call(cbind, clean4)
+    temp_df <- as.data.frame(temp_df)
+    names(temp_df) <- temp_df %>% slice(1) %>% unlist()
+    temp_df <- Filter(function(x)!all(x==""), temp_df)
+    temp_df <- temp_df[5,]
+    temp_df$time <- as.character(Sys.time()-connection_duration)
+    temp_df <- temp_df[,c(length(temp_df), seq(2,length(temp_df)-1,1))]
+    
+    # Only use when reading data from googlesheet
+    temp_df$time <- as.POSIXct(temp_df$time) - (60*60*5)
+    Sys.sleep(5)
+    closeAllConnections()
+    # Write Data to GoogleSheet
+    sheet_name <- "Market Data Backup"
+    id = as_sheets_id('1ig3mbe43WIVZbHNuTI70AYLih4WryOqm6KujYc4bUeM')
+    try(id %>% sheet_append(temp_df, sheet=sheet_name))
+    Sys.sleep(10)
+    closeAllConnections()
+    
+    end_computation_time <- Sys.time()
+    
+    computation_time <- end_computation_time - start_computation_time
+    
+    total_duration <- as.numeric(computation_time + connection_time)
+    
+    sleep_time <- 60 - total_duration 
+    
+    Sys.sleep(sleep_time)
+  }
+}
+```
