@@ -74,13 +74,13 @@ server <- function(input,output){
             filter(as.Date(time)==input$date) %>% 
             select(input$stock)
         
-        df5m <- df1m[seq(1, nrow(df), 5), ]
+        df5m <- df1m[seq(1, nrow(df1m), 5), ]
         
-        df15m <- df1m[seq(1, nrow(df), 15), ]
+        df15m <- df1m[seq(1, nrow(df1m), 15), ]
         
-        df30m <- df1m[seq(1, nrow(df), 30), ]
+        df30m <- df1m[seq(1, nrow(df1m), 30), ]
         
-        df1h <- df1m[seq(1, nrow(df), 60), ]
+        df1h <- df1m[seq(1, nrow(df1m), 60), ]
         
         #------------------------------------
         
@@ -150,13 +150,13 @@ server <- function(input,output){
             filter(as.Date(time)==input$date) %>% 
             select(input$stock)
         
-        df5m <- df1m[seq(1, nrow(df), 5), ]
+        df5m <- df1m[seq(1, nrow(df1m), 5), ]
         
-        df15m <- df1m[seq(1, nrow(df), 15), ]
+        df15m <- df1m[seq(1, nrow(df1m), 15), ]
         
-        df30m <- df1m[seq(1, nrow(df), 30), ]
+        df30m <- df1m[seq(1, nrow(df1m), 30), ]
         
-        df1h <- df1m[seq(1, nrow(df), 60), ]
+        df1h <- df1m[seq(1, nrow(df1m), 60), ]
         
         #------------------------------------
         
