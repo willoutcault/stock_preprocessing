@@ -11,6 +11,7 @@ require(scales)
 require(ggplot2)
 require(e1071)
 require(caTools) 
+require(QuantTools)
 
 sheet <- "Market Data Backup"
 raw_df <- read_sheet("https://docs.google.com/spreadsheets/d/1ig3mbe43WIVZbHNuTI70AYLih4WryOqm6KujYc4bUeM/edit#gid=555070615", sheet=sheet)
@@ -60,52 +61,59 @@ stocks <- colnames(raw_df[,2:ncol(raw_df)])
 ```
 
 ```{r}
-df <- raw_df %>% 
-    filter(as.Date(time)==dates[2]) %>% 
-    select(stocks[1])
-
-df <- create_features(df)
-
-training_set <- df[1:round(nrow(df)*.75, 0),] 
-test_set <- df[(round(nrow(df)*.75, 0)+1):nrow(df),]
-
-
-x <- training_set[,-ncol(training_set)]
-y <- as.factor(training_set$direction)
-
-#model_tuner <- tune(svm, train.x=x, train.y=y,
-#                   ranges = list(gamma = 2^(-1:1), cost = 2^(2:4)),
-#                   kernel = 'linear',
-#                   tunecontrol = tune.control(nrepeat = 10, sampling = "cross", cross = 10))
-
-classifier = svm(formula = direction ~ ., 
-               data = training_set, 
-               type = 'C-classification',
-               kernel ='linear'
-#               cost = model_tuner$best.model$cost,
-#               gamma = model_tuner$best.model$gamma
-               )
-
-
-results <- data.frame("Actual" = test_set$direction)
-results$Predicted <- "NA"
-
-for (i in seq(1,nrow(test_set), 1)){
-  
-  results$Predicted[i] <- as.character(predict(classifier, test_set[1,-ncol(test_set)]))
-  training_set <- rbind(training_set, test_set[1,])
-  test_set <- test_set[-1,]
-  
-classifier = svm(formula = direction ~ ., 
-               data = training_set, 
-               type = 'C-classification',
-               kernel ='linear'
-#               cost = model_tuner$best.model$cost,
-#               gamma = model_tuner$best.model$gamma
-            )
+samples <- sample(stocks, size=30)
+means <- data.frame()
+for (stock in samples){
+    df <- raw_df %>% 
+        filter(as.Date(time)==dates[2]) %>% 
+        select(stock)
+    
+    df <- create_features(df)
+    
+    training_set <- df[1:round(nrow(df)*.75, 0),] 
+    test_set <- df[(round(nrow(df)*.75, 0)+1):nrow(df),]
+    
+    
+    x <- training_set[,-ncol(training_set)]
+    y <- as.factor(training_set$direction)
+    
+    #model_tuner <- tune(svm, train.x=x, train.y=y,
+    #                   ranges = list(gamma = 2^(-1:1), cost = 2^(2:4)),
+    #                   kernel = 'linear',
+    #                   tunecontrol = tune.control(nrepeat = 10, sampling = "cross", cross = 10))
+    
+    classifier = svm(formula = direction ~ ., 
+                   data = training_set, 
+                   type = 'C-classification',
+                   kernel ='linear'
+    #               cost = model_tuner$best.model$cost,
+    #               gamma = model_tuner$best.model$gamma
+                   )
+    
+    
+    results <- data.frame("Actual" = test_set$direction)
+    results$Predicted <- "NA"
+    
+    for (i in seq(1,nrow(test_set), 1)){
+      
+      results$Predicted[i] <- as.character(predict(classifier, test_set[1,-ncol(test_set)]))
+      training_set <- rbind(training_set, test_set[1,])
+      test_set <- test_set[-1,]
+      
+    classifier = svm(formula = direction ~ ., 
+                   data = training_set, 
+                   type = 'C-classification',
+                   kernel ='linear'
+    #               cost = model_tuner$best.model$cost,
+    #               gamma = model_tuner$best.model$gamma
+                )
+    }
+    
+    table(results$Predicted, results$Actual)
+    
+    means <- rbind(mean(results$Predicted==results$Actual), means)
 }
+colnames(means) <- c("mean")
+hist(means$mean)
 
-table(results$Predicted, results$Actual)
-
-mean(results$Predicted==results$Actual)
 ```
