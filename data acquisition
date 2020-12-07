@@ -12,7 +12,7 @@ run <- T
 
 
 holidays <- as.character(holidayNYSE(year = getRmetricsOptions("currentYear")))
-market_open <- as.POSIXlt(paste(Sys.Date(),'9:50:00',sep=""))
+market_open <- as.POSIXlt(paste(Sys.Date(),'9:30:00',sep=""))
 market_close <- as.POSIXlt(paste(Sys.Date(),'16:00:00',sep=""))
 today <- as.character(Sys.Date())
 
