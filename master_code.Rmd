@@ -18,7 +18,7 @@ require(caret)
 require(caTools) 
 require(QuantTools)
 ```
-
+Read in data.
 ```{r}
 sheet <- "Market Data Backup"
 raw_df <- read_sheet("https://docs.google.com/spreadsheets/d/1ig3mbe43WIVZbHNuTI70AYLih4WryOqm6KujYc4bUeM/edit#gid=555070615", sheet=sheet)
@@ -26,6 +26,7 @@ raw_df[,2:length(raw_df)] <- sapply(raw_df[,2:length(raw_df)], str_remove_all, "
 raw_df[,2:length(raw_df)] <- sapply(raw_df[,2:length(raw_df)], as.numeric)
 ```
 
+Create technical features.
 ```{r}
 ts_filter <- function(clean_df, stock, dates, t){
     df <- clean_df %>% 
@@ -91,7 +92,7 @@ create_features <- function(training_set){
 }
 ```
 
-
+Create Models
 ```{r warning=F}
 accuracy_df <- data.frame()
 precision_df <- data.frame()
@@ -128,30 +129,30 @@ for (t in timestep){
     training1 <- filter(training, direction != "UP")
     training2 <- filter(training, direction != "DOWN")
     
-    #if (t==1){
-      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(testing), 0))$data)
-      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(testing), 0))$data)
+    if (t==1){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      training <- rbind(training1, training2)
+      training$direction <- as.factor(training$direction)
+    }
+    if (t==2){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      training <- rbind(training1, training2)
+      training$direction <- as.factor(training$direction)
+    }
+    if (t==3){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
       testing <- rbind(training1, training2)
       testing$direction <- as.factor(testing$direction)
-    #}
-    #if (t==2){
-    #  try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(testing), 0))$data)
-    #  try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(testing), 0))$data)
-    #  testing <- rbind(training1, training2)
-    #  testing$direction <- as.factor(testing$direction)
-    #}
-    #if (t==3){
-    #  try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(testing), 0))$data)
-    #  try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(testing), 0))$data)
-    #  testing <- rbind(training1, training2)
-    #  testing$direction <- as.factor(testing$direction)
-    #}
-    #if (t==4){
-    #  try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(testing), 0))$data)
-    #  try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(testing), 0))$data)
-    #  testing <- rbind(training1, training2)
-    #  testing$direction <- as.factor(testing$direction)
-    #}
+    }
+    if (t==4){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      training <- rbind(training1, training2)
+      training$direction <- as.factor(training$direction)
+    }
     
     # Saving training data distribution for random market data.
     props <- as.vector(prop.table(table(training$direction)))
@@ -207,11 +208,6 @@ for (t in timestep){
   colnames(precision_df) <- c("SVM_Precision","Rand_Precision")
   
 }
-```
-
-
-```{r}
-
 ```
 
 
