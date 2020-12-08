@@ -1,0 +1,31 @@
+```{r}
+library(rameritrade)
+```
+
+```{r}
+callbackURL = 'http://localhost'
+consumerKey = 'QWG3BLPOCW4W4SFWXK8KICIKMALSARTP'
+rameritrade::td_auth_loginURL(consumerKey, callbackURL)
+```
+
+```{r}
+authCode = 'https://localhost/?code=vkFYT%2BId05mwYrnEZ%2FYxbvnxqY9LTgtp96Kd73DeXVg9aIg7VUjevrvx%2BOV%2BsldoKttb5GF8JjgHaTSfBaKog90fYUPUrBxH6Y%2B59eoV7JUSF05V0I8mhXfr%2FYZYhdqtaCHJ4sudpYT%2BdRJXz9uLVBZkS0H1Xe5iouEZqwpNljPP6nZFIqFk0e04GeEl23G%2FUOSaVr82ODNuOLxorejL8iyBwUi2I2JW2qmlGBDkjIJ3eXhVdOSjk7L%2F%2FyDrA8V6FOSaT5yMge7W7a%2BeTc3VJb7rg3Uv45EOcg2vme17X%2BHoT3wjyCI9jvroJg%2BvMxgGUsJkuSytztzrD1Q2KU8N70pyqNc2s9RUianjSH1dTBWxx0PJzn91hK8oa5NLsqZA4VtsikWNR2mEDqYUmhBRrKJCh8PbAdrNNXeH2Qo8g2W9%2BdXRd%2BC9yuhUYuz100MQuG4LYrgoVi%2FJHHvllyv3OWIVF7RyhYkpKuueV52gtDLfx43QFj9Hu9eAf47Hs8Kcftid42039PfFq2hjz886ZoX4hyq3B%2FuOQQOkaxFRoutSK37Jw58MXDvsWJz6msP4%2FhMDP0ygwT15Ds9WVBUsr7ERkDKnpnLeVngiVJIBRi3euTsEk3Yn5ppK8mI7yJa7Vj7Y7B0K%2BFedwcVsKQFiklIqdN0ef49%2FUQEQhlJwszYvdtI2rbbAiI8OTlfzC5xlg79mGV7isIXUI1AFrFxrF0ljTVV5VSUIOt3ISHZbqYWy2E8hB9vkT6eI3Dz5VDN6j9dlUSk1c5gn2L5RAmwmuOyCjrDzobMckGqiR7D8c5DDKhN5zSJQHLW1fqiKCEqYzD%2FPKSH%2BxFaCUykJwJ9H69ozZD5Z6awAvQGEDyfOMEnRp9F04hX2RByo88mNR8Gi4mWnp8lewCg%3D212FD3x19z9sWBHDJACbC00B75E'
+
+refreshToken = rameritrade::td_auth_refreshToken(consumerKey, callbackURL, authCode)
+
+saveRDS(refreshToken,'Downloads/TDAPI')
+```
+
+```{r}
+refreshToken = readRDS('Downloads/TDAPI')
+accessToken = rameritrade::td_auth_accessToken(consumerKey, refreshToken)
+```
+
+```{r}
+actDF = td_accountData()
+str(actDF)
+```
+
+```{r}
+td_priceHistory('AAPL', startDate = '2020-09-01', freq='5min')
+```
