@@ -1,0 +1,151 @@
+---
+title: "Untitled"
+author: "Will Outcault"
+date: "11/16/2020"
+output: html_document
+---
+
+```{r}
+require(ROSE)
+require(tidyverse)
+require(googlesheets4)
+require(timeDate)
+require(forecast)
+require(scales)
+require(ggplot2)
+require(e1071)
+require(caret)
+require(caTools) 
+require(QuantTools)
+require(rameritrade)
+```
+
+
+Create technical features.
+```{r}
+consectutives <- function(training_set, n){
+  
+  training_set <- cbind(training_set, rep(NA, nrow(training_set)))
+  training_set <- cbind(training_set, rep(NA, nrow(training_set)))
+  training_set <- cbind(training_set, rep(NA, nrow(training_set)))
+  
+  for(i in seq(n, nrow(training_set), 1)){
+    training_set[i,ncol(training_set)] <- sum(training_set$direction[seq(i-n,i-1, 1)]=="UP")
+    training_set[i,ncol(training_set)-1] <- sum(training_set$direction[seq(i-n,i-1, 1)]=="DOWN")
+    training_set[i,ncol(training_set)-2] <- sum(training_set$direction[seq(i-n,i-1, 1)]=="NOCHANGE")
+  }
+  training_set
+}
+create_features <- function(training_set){
+    
+    training_set <- data.frame(lapply(training_set, log))
+    training_set <- data.frame(lapply(training_set, diff))
+    
+    training_set$sma15 <- sma(training_set[,1], 15)
+    training_set$sma10 <- sma(training_set[,1], 10)
+    training_set$sma5 <- sma(training_set[,1], 5)
+    
+    training_set$ema15 <- ema(training_set[,1], 15)
+    training_set$ema10 <- ema(training_set[,1], 10)
+    training_set$ema5 <- ema(training_set[,1], 5)
+    
+    training_set$direction <- NA
+    for (i in seq(2,nrow(training_set),1)){
+        if (training_set[i,1] > 0){
+            training_set$direction[i-1] <- "UP"
+        }
+        if (training_set[i,1] == 0){
+            training_set$direction[i-1] <- "NOCHANGE"
+        }
+        if (training_set[i,1] < 0){
+            training_set$direction[i-1] <- "DOWN"
+        }
+    }
+    
+    column_names <- colnames(training_set)
+    
+    training_set <- consectutives(training_set, 10)
+    training_set <- consectutives(training_set, 5)
+    training_set <- consectutives(training_set, 5)
+    
+    colnames(training_set) <- append(column_names, c("UP10", "DOWN10", "NOCHANGE10",
+                                                     "UP5", "DOWN5", "NOCHANGE5",
+                                                     "UP3", "DOWN3", "NOCHANGE3"))
+    
+    training_set <- training_set[complete.cases(training_set),]
+    training_set$direction <- as.factor(training_set$direction)
+    training_set
+}
+```
+
+Create API Connection
+```{r}
+callbackURL = 'http://localhost'
+consumerKey = 'QWG3BLPOCW4W4SFWXK8KICIKMALSARTP'
+rameritrade::td_auth_loginURL(consumerKey, callbackURL)
+authCode = 'https://localhost/?code=SXfAJZfPzzKxNIBw%2B9jp5W6aFdQLQtKNOsiEszrpThxwCsrq2SAN342P8M9QFKGWdLiYrdHCu1FBLWAK0tE3Gz4n9zHvHCnOtME5N56uLVbQcDU%2Bp8OmcJYXWfMCoqmCkEfHmFvYYqpj1KgJG20Ebyt9Qn7zGgyFKUFKD15SUd8Wy7Rejmxz%2BX0s911n%2F8PSB6SJk2U4gIM9KCgsNiKJG04rswTCdhgLoxcl4dWbCSSvDwU8cVDS42vK1oPF4fEEzrrNozEbkLVcUsfxpifVehYYO0h8PO4Xm3c3cuwUHRlksDhf3bGcbMPZ2700HllaWucjnY7USAAQjymHK%2FBOtzb6jysYrP2ub8RZtqkWW03baJzoPPpZIBlg60w2YEajR41%2BW1gA8DG6YSXGrYpCN7t4%2BIE5kZmkM61J3owhLm1UbP2kMJ9OzCMOul5100MQuG4LYrgoVi%2FJHHvl6CS6RUPnvtR6zS1HgMQSETXl68ZAkmRcGrvEQxLEcf42mAG8fzT2ReWG5N%2BFL5Jl1ketTVFTFcRvH7w%2FbCX%2BTrMBs4DFylLROUN0WIrrn5E2exR5CxvgdIulIRvwg71wv64yJnx1VkhYN%2F9OPEreIKmWXAee2Q53%2BlD1w5SHS6Am5A9XNDYBHvIkLzujPz%2FsbqDXjwMMtNYzBy63Iab7zCY07wsRzEy%2FOlDfO62WeSwj2U%2B1pQ0z0IUEMaOULHsvOS5zBf%2BAmQ1ZMJBggoBvCxqabyW9HD8XDPQEBf4mc3DBEZJvqzE8J2detdFEIKbszV1IlPZrvvO2%2Bw%2B2qhuyheP53Oxap%2F2kUGciHQy6TgWOhIrMouRzpKb8mDxQ3L8a%2BN%2B9N7XOXASSV44xvAxVrP5xzH%2B4kfG0mAkwtO%2FNG4fIHIyRfjrZkB%2BMTsQ%3D212FD3x19z9sWBHDJACbC00B75E'
+refreshToken = rameritrade::td_auth_refreshToken(consumerKey, callbackURL, authCode)
+accessToken = rameritrade::td_auth_accessToken(consumerKey, refreshToken)
+```
+
+
+Create Models
+```{r warning=F}
+precisiondf <- data.frame()
+for (i in seq(1,15,1)){
+# Load Stock
+options(scipen = 999)
+df <- td_priceHistory('AAPL', startDate = Sys.Date()-4, endDate = Sys.Date(), freq='1min')
+
+df <- data.frame(df$close)
+
+# Create Features
+df <- create_features(df)
+
+# Split 70/20
+inTraining <- createDataPartition(df$direction, p = 0.70, list=FALSE)
+training <- df[inTraining,]
+testing <- df[-inTraining,]
+
+# Oversampling and Training/Testing 75/25 Split
+training1 <- filter(training, direction == "NOCHANGE")
+training2 <- filter(training, direction != "NOCHANGE")
+training2 <- ROSE(direction~., training2, N=nrow(training2), p=.5)$data
+training <- rbind(training1, training2)
+
+# Train Model
+classifier <- svm(formula = direction ~ ., 
+     data = training, 
+     type = 'C-classification',
+     kernel ='polynomial',
+     cost = 100
+)
+    
+predictions <- predict(classifier, testing[,-8])
+actual <- testing[,8]
+TP <- sum((predictions=='UP')&(actual=='UP'))
+FP <- sum((predictions=='UP')&(actual!='UP'))
+precision <- TP / (TP+FP)
+precisiondf <- rbind(precisiondf, c(precision, sum(predictions=='UP')))
+}
+
+colnames(precisiondf) <- c("Precision","Count")
+
+g <- ggplot(precisiondf, aes(seq(1,15,1),Precision))
+g + geom_point() +
+  geom_abline(slope = 0, intercept = 0.5) +
+  geom_smooth(method='lm') +
+  labs(subtitle="SVM vs. Market",
+       y="SVM", 
+       x="Market",
+       title="Precision")
+
+g <- ggplot(precisiondf, aes(seq(1,15,1),Count))
+g + geom_point() +
+  geom_abline(slope = 0, intercept = 0.5) +
+  geom_smooth(method='lm') +
+  labs(subtitle="SVM vs. Market",
+       y="SVM", 
+       x="Market",
+       title="Count")
+```
