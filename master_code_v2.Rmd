@@ -1,0 +1,225 @@
+---
+title: "Untitled"
+author: "Will Outcault"
+date: "11/16/2020"
+output: html_document
+---
+
+```{r}
+require(ROSE)
+require(tidyverse)
+require(googlesheets4)
+require(timeDate)
+require(forecast)
+require(scales)
+require(ggplot2)
+require(e1071)
+require(caret)
+require(caTools) 
+require(QuantTools)
+```
+Read in data.
+```{r}
+raw_df <- read.csv("https://raw.githubusercontent.com/willoutcault/stock_preprocessing/master/stock_data.csv", T, ",")
+raw_df[,2:length(raw_df)] <- sapply(raw_df[,2:length(raw_df)], str_remove_all, ",")
+raw_df[,2:length(raw_df)] <- sapply(raw_df[,2:length(raw_df)], as.numeric)
+```
+
+Create technical features.
+```{r}
+ts_filter <- function(clean_df, stock, dates, t){
+    df <- clean_df %>% 
+      filter(as.Date(time) %in% dates[seq(1,t,1)]) %>% 
+      dplyr::select(all_of(stock))
+    df <- df[seq(1,nrow(df),t),]
+    
+}
+consectutives <- function(training_set, n){
+  
+  training_set <- cbind(training_set, rep(NA, nrow(training_set)))
+  training_set <- cbind(training_set, rep(NA, nrow(training_set)))
+  training_set <- cbind(training_set, rep(NA, nrow(training_set)))
+  
+  for(i in seq(n, nrow(training_set), 1)){
+    training_set[i,ncol(training_set)] <- sum(training_set$direction[seq(i-n,i-1, 1)]=="UP")
+    training_set[i,ncol(training_set)-1] <- sum(training_set$direction[seq(i-n,i-1, 1)]=="DOWN")
+    training_set[i,ncol(training_set)-2] <- sum(training_set$direction[seq(i-n,i-1, 1)]=="NOCHANGE")
+  }
+  training_set
+}
+create_features <- function(training_set){
+    
+    training_set <- data.frame(lapply(training_set, log))
+    training_set <- data.frame(lapply(training_set, diff))
+    
+    training_set$sma15 <- sma(training_set[,1], 15)
+    training_set$sma10 <- sma(training_set[,1], 10)
+    training_set$sma5 <- sma(training_set[,1], 5)
+    
+    training_set$ema15 <- ema(training_set[,1], 15)
+    training_set$ema10 <- ema(training_set[,1], 10)
+    training_set$ema5 <- ema(training_set[,1], 5)
+    
+    training_set$direction <- NA
+    for (i in seq(2,nrow(training_set),1)){
+        if (training_set[i,1] > 0){
+            training_set$direction[i-1] <- "UP"
+        }
+        if (training_set[i,1] == 0){
+            training_set$direction[i-1] <- "NOCHANGE"
+        }
+        if (training_set[i,1] < 0){
+            training_set$direction[i-1] <- "DOWN"
+        }
+    }
+    
+    column_names <- colnames(training_set)
+    
+    training_set <- consectutives(training_set, 10)
+    training_set <- consectutives(training_set, 5)
+    training_set <- consectutives(training_set, 5)
+    
+    colnames(training_set) <- append(column_names, c("UP10", "DOWN10", "NOCHANGE10",
+                                                     "UP5", "DOWN5", "NOCHANGE5",
+                                                     "UP3", "DOWN3", "NOCHANGE3"))
+    
+    training_set <- training_set[complete.cases(training_set),]
+    training_set$direction <- as.factor(training_set$direction)
+    training_set
+}
+```
+
+Create Models
+```{r warning=F}
+accuracy_df <- data.frame()
+precision_df <- data.frame()
+predicted_distributions <- data.frame()
+actual_distributions <- data.frame()
+stock_names <- colnames(raw_df[,2:ncol(raw_df)])
+stock_samples <- sample(stock_names, size=30)
+timestep <- seq(1,10,1)
+for (t in timestep){
+  
+  timestep_results <- data.frame()
+  
+  dates <- unique(as.Date(raw_df$time))
+  date <- sample(dates, size=t, replace=F)
+  
+  for (stock in stock_samples){
+    
+    #Filter Timestep/Stocks
+    df <- ts_filter(raw_df, stock, date, t)
+    df <- data.frame(df)
+    
+    # Create Features
+    df <- create_features(df)
+    
+    # Split 70/20
+    inTraining <- createDataPartition(df$direction, p = 0.70, list=FALSE)
+    training <- df[inTraining,]
+    testing <- df[-inTraining,]
+    
+    # Oversampling and Training/Testing 75/25 Split
+    training1 <- filter(training, direction != "UP")
+    training2 <- filter(training, direction != "DOWN")
+    
+    if (t==1){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      training <- rbind(training1, training2)
+      training$direction <- as.factor(training$direction)
+    }
+    if (t==2){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      training <- rbind(training1, training2)
+      training$direction <- as.factor(training$direction)
+    }
+    if (t==3){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      testing <- rbind(training1, training2)
+      testing$direction <- as.factor(testing$direction)
+    }
+    if (t==4){
+      try(training1 <- ROSE(direction ~ ., training1, p=0.33, N=round(.5*nrow(training), 0))$data)
+      try(training2 <- ROSE(direction ~ ., training2, p=0.33, N=round(.5*nrow(training), 0))$data)
+      training <- rbind(training1, training2)
+      training$direction <- as.factor(training$direction)
+    }
+    
+    # Saving training data distribution for random market data.
+    props <- as.vector(prop.table(table(training$direction)))
+    props_names <- names(prop.table(table(training$direction)))
+    
+    # Train Model
+    classifier <- svm(formula = direction ~ ., 
+         data = training, 
+         type = 'C-classification',
+         kernel ='polynomial',
+         class.weights= table(training$direction)
+    )
+    
+    #Stock Predictions
+    results <- data.frame(testing$direction)
+    results$Predicted <- predict(classifier, testing[,-8])
+    colnames(results) <- c("Actual", "Predicted")
+    
+    #Random Predictions
+    results$Random <- sample(props_names, size=nrow(results), prob=props, replace=T)
+    
+    #Bind to Timestep DF
+    timestep_results <- rbind(results,timestep_results)
+    
+  }
+  
+  # Create Class Distribution Table
+  actual_props <- prop.table(table(timestep_results$Actual))
+  actual_distributions <- rbind(actual_distributions, actual_props)
+  colnames(actual_distributions) <- names(prop.table(table(timestep_results$Actual)))
+  
+  predicted_props <- prop.table(table(timestep_results$Predicted))
+  predicted_distributions <- rbind(predicted_distributions, predicted_props)
+  colnames(predicted_distributions) <- names(prop.table(table(timestep_results$Predicted)))
+  
+  #Calculate TS Mean Accuracy and Table
+  svm_accuracy <- mean(timestep_results$Actual==timestep_results$Predicted, na.rm=T)
+  rand_accuracy <- mean(timestep_results$Actual==timestep_results$Random, na.rm=T)
+  
+  # Calculate Precision
+  TP <- sum((timestep_results$Actual=="UP")&(timestep_results$Predicted=="UP"))
+  FP <- sum((timestep_results$Actual=="DOWN")&(timestep_results$Predicted=="UP"))
+  svm_precision <- TP / (TP + FP)
+  TP <- sum((timestep_results$Actual=="UP")&(timestep_results$Random=="UP"))
+  FP <- sum((timestep_results$Actual=="DOWN")&(timestep_results$Random=="UP"))
+  rand_precision <- TP / (TP + FP)
+  
+  # Bind Accuracy and Precision to DFs
+  accuracy_df <- rbind(accuracy_df, c(svm_accuracy, rand_accuracy))
+  colnames(accuracy_df) <- c("SVM_Accuracy","Rand_Accuracy")
+  precision_df <- rbind(precision_df, c(svm_precision, rand_precision))
+  colnames(precision_df) <- c("SVM_Precision","Rand_Precision")
+  
+}
+```
+
+
+```{r}
+g <- ggplot(accuracy_df, aes(Rand_Accuracy,SVM_Accuracy))
+g + geom_point() +
+  geom_abline(slope = 1 , intercept = 0) +
+  labs(subtitle="SVM vs. Market",
+       y="SVM", 
+       x="Market",
+       title="Accuracy")
+```
+
+```{r}
+g <- ggplot(precision_df, aes(Rand_Precision,SVM_Precision))
+g + geom_point() +
+  geom_abline(slope = 1 , intercept = 0) +
+  labs(subtitle="SVM vs. Market",
+       y="SVM", 
+       x="Market",
+       title="Precision")
+```
