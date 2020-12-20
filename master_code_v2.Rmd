@@ -102,7 +102,7 @@ for (t in timestep){
   
   timestep_results <- data.frame()
   
-  dates <- unique(as.Date(raw_df$time))
+  dates <- unique(as.Date(raw_df$time, format="%m/%d/%y"))
   date <- sample(dates, size=t, replace=F)
   
   for (stock in stock_samples){
