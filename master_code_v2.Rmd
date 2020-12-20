@@ -29,7 +29,7 @@ Create technical features.
 ```{r}
 ts_filter <- function(clean_df, stock, dates, t){
     df <- clean_df %>% 
-      filter(as.Date(time) %in% dates[seq(1,t,1)]) %>% 
+      filter(as.Date(time, format="%m/%d/%y") %in% dates[seq(1,t,1)]) %>% 
       dplyr::select(all_of(stock))
     df <- df[seq(1,nrow(df),t),]
     
